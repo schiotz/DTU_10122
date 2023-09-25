@@ -1,0 +1,152 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage{a4wide}
+\usepackage{amsmath}
+\usepackage{hyperref}
+
+\begin{document}
+\title{Monte Carlo simulations of the Ising model}
+\author{Jakob Schiøtz}
+\date{\today}
+\maketitle
+
+The computer exercise for this week uses Monte Carlo simulations to
+study the Ising model, with a particular focus on fluctuations.
+
+\section{The computer code}
+
+The computer code is in the assocated file \texttt{IsingModel.ipynb},
+it is a Jupyter notebook.  If you are not set up to run Jupyter
+notebooks on your own computer, you can run it in the cloud,
+instructions for both are in the Appendix.
+
+\section{Units}
+
+The simulations assume units where $J=1$ and $k=1$.  We thus measure
+both energies and temperatures in units of $j$.
+
+\section{Part I: Manual investigation}
+
+The first part of the Notebook investigates what happens at a single
+temperature.  Look at the function \texttt{initialize()}, it sets up a
+spin lattice of a given size.  The function \texttt{simulate()} runs
+the actual Ising Model simulation.
+
+\begin{itemize}
+\item Look at the code of the two functions, and convince yourself
+  that it makes sense.
+\item Run MC simulations at $T=1$, $T=2$ and $T=3$.
+  \begin{itemize}
+  \item Look at the output states, what are the qualitative
+    differences.
+  \item Look at the graphs of energy and magnetization versus step.
+    Is the simulation long enough?  In the next part, we are going to
+    make averages over the second half of the data produced, so a
+    transient should be limited to the first half.
+  \end{itemize}
+\end{itemize}
+
+\section{Part II: Temperature variations}
+
+The second part of the code contains a loop that loops over
+temperatures.  The temperatures are not equidistance, they are closer
+near the expected transition temperature, in order to not waste too
+much time on aquiring data at less interesting temperatures.
+
+\begin{itemize}
+\item Run the temperature loop, and plot energy and magnetization
+  versus temperature.  Estimate the transition temperature.
+\item The system is more easily caught in a local minimum when
+  starting with a random spin configuration than when starting with
+  all spin up.  For that reason, this part of the code does the
+  latter.
+  \begin{itemize}
+  \item Do you think this might bias the result when you try to
+    estimate the transition temperature?
+  \item Would starting with a random configuration also bias the
+    result?
+    \item What could be done to limit the effect of this bias?  At
+      what cost?
+  \end{itemize}
+\item The heat capacity $C_v$ can be estimated from the fluctuations
+  in the energy (note that you need the fluctuations of the total
+  energy, not the energy per site.  The variable \texttt{nsites}
+  contains the number of sites).  Calculate and plot the heat capacity
+  versus temperature.
+\item In a similar way, calculate and plot the magnetic susceptibility
+  $\chi$ from the fluctuations in the magnetization.  It only makes
+  sense above the transition temperature (why?)
+\item Why do both $C_v$ and $\chi$ increase dramatically near the
+  transition temperature?
+\end{itemize}
+
+\section{Finite-size effects}
+
+Use the first section of the notebook to look at the state produced by
+simulations close to the critical temperature.  You will see that
+large clusters of the same spin form as fluctuations, they become
+smaller as you move away from the critical tempeture.
+
+\begin{itemize}
+\item How do you expect the finite size of the system to affect the
+  simulations?
+ \item What happens with the critical temperature if you run with a
+   much smaller system, e.g. $4\times4$ spins instead of $20\times20$?
+   Reducing the system size is easier than increasing it, due to how
+   the computational time scales.
+\end{itemize}
+
+
+\section{Finite field - critical exponents}
+
+The simulation function takes an extra parameter \texttt{H} specifying
+an external field (per default it is off).  Set the temperature to the
+(theoretical) critical temperature $T=2.269$ and calculate the average
+magnetisation for magnetic fields of $H = 0.01, 0.02, 0.04, 0.008$ and
+$0.016$.  Plot the data so you can use it to estimate the critical
+exponent in equation (5.88): $\left|m\right| \sim \left|H\right|^{1/\delta}$
+
+
+\clearpage
+\appendix
+
+\section*{Appendix}
+
+\section{Running the code in Google Colab}
+\label{sec:running}
+
+To run the code in your browser in Google Colab, you need a Google
+account.  Log in to Google Colab at
+\url{https://colab.research.google.com/} and then click on the Open In
+Colab badge in DTU Learn.  This will copy the notebook from my GitHub
+account to your Colab workspace.
+
+\section{Running on your own computer}
+
+This requires a working Python installation on your laptop /
+computer.  On Windows Anaconda is popular (and good).  On Linux,
+Python comes with the OS but you may need to install notebook
+packages.  On MacOS install using Homebrew or download directly from
+Python.org, using Anaconda on a mac is not recommended.
+
+\subsection{Running in Visual Studio}
+
+If you are using Visual Studio, you can download the notebook file
+from DTU Learn and open it in Visual Studio.  VS may suggest that you
+install extensions for notebooks, you should accept that.  You run the
+cells by pressing Shift-Enter in the cell.
+
+\subsection{Running in your browser}
+
+If you use Anaconda on Windows, open an Anaconda terminal from your
+start menu.  If you use something else, open a terminal / command
+window.  In that window, run the command \texttt{jupyter notebook}.  A
+notebook server should start and a window open in your browser.
+Download the notebook file from DTU Learn, and open it.  You run the
+cells by pressing Shift-Enter in the cell.
+
+\end{document}
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:
