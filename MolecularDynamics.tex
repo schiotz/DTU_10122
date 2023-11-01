@@ -1,0 +1,348 @@
+
+%%% NOTE:
+%%%
+%%% The figures for this document are created in the notebook
+%%% SimulationGuide.ipynb
+%%%
+
+
+\documentclass[a4paper,11pt]{article}
+
+\usepackage{a4wide}
+\usepackage{amsmath}
+\usepackage[hidelinks]{hyperref}
+\usepackage{siunitx}
+\usepackage{graphicx}
+
+\usepackage[sort&compress,numbers]{natbib}
+\bibliographystyle{apsrev4-1}
+\usepackage{doi}
+
+\begin{document}
+\title{Molecular Dynamics simulations of the Lennard-Jones gas}
+\author{Jakob Schiøtz}
+\date{\today}
+\maketitle
+
+\begin{abstract}
+  The computer exercise for this week uses Molecular Dynamics
+  simulations to study the Lennard Jones gas, and how it deviates from
+  the ideal gas.
+\end{abstract}
+
+\tableofcontents
+\clearpage
+
+\section{Theory}
+
+\subsection{Molecular Dynamics (MD)}
+
+In molecular dynamics (MD), you numerically solve Newton's second law
+for the atoms in a system (we thus perform classical dynamics,
+ignoring that atoms are really quantum objects).  For this purpose it
+is most practical to write Newton's second law as a set of coupled
+differential equations in the positions $\vec r$ and velocities $\vec
+v$:
+\begin{align}
+  \label{eq:1}
+  {d\vec v \over dt} &= {1 \over m} \vec F(\vec r) \\
+  {d\vec r \over dt} &= \vec v 
+\end{align}
+
+In the computer, we discretize this by introducing a discrete time
+step, $\Delta t$.  Doing this naively leads to the Euler algorithm, which
+\emph{does not work} in practice:
+\begin{align}
+  \label{eq:Euler}
+  \vec v(t + \Delta t) &= \vec v(t) + {1 \over m} \vec F(\vec r(t))
+                         \Delta t\\
+  \vec r(r + \Delta t) &= \vec r(t) + \vec v(t) \Delta t
+\end{align}
+
+Attempting to use this algorithm for molecular dynamics will result in
+the total energy of the system growing without bounds, even for very
+small time-steps.  The problem is that the numerical error is always
+in the same direction.
+
+This is illustrated with a very simple example, a harmonic oscillator
+(a mass on a spring).  The exact solution of the motion of the
+harmonic oscillator is that position and momentum both change as
+$\sin(t)$, but $\SI{90}{\degree}$ out of phase, i.e. a plot of
+$\bigl( r(t), p(t) \bigr)$ will be an ellipse.  But Euler's algorithm
+approximates this by a function that is stepwise linear, and every
+step is tangent to a (scaled) ellipse, see Figure
+\ref{fig:algorithms}(A).  This leads to a systematic increase in the
+total energy of the system that can be reduced by reducing the time
+step, but not eliminated.
+\begin{figure}
+  \centering
+  \includegraphics[width=\linewidth]{MD_Algorithms.png}
+  \caption{Comparison of MD algorithms for a 1D harmonic oscillator.
+    Both position (r) and momentum (p) vary sinusoidally, and the
+    system traces a circle in phase space (blue circles). (A)
+    illustrates the Euler algorithm.  Each time step is tangent to the
+    true motion, and therefore moves the system to larger energies
+    (illustrated with the grey circles).  (B) illustrates the Verlet
+    algorithm, the time step uses halfway values and becomes a chord
+    on the circle.  For the harmonic oscillator, the step always hits
+    the circle exactly.}
+  \label{fig:algorithms}
+\end{figure}
+
+\subsubsection{The Velocity Verlet algorithm}
+\label{sec:veloc-verl-algor}
+
+The fundamental reason why the Euler algoritm fails, is that it is not
+symmetric in time as the equations of motion are.  The Euler algorithm
+uses the quantities at the start of the time step to update position
+and momentum, a time reversal of this algoritm would use the
+quantities at the end of the time step, and thus not be the same
+algorithm.
+
+A simple fix is to use the velocity at the middle of the time step to
+update the positions, and the average of the force at the beginning
+and the end of the time step to update the velocity.  This leads to
+the \emph{Velocity Verlet algorithm}:\footnote{The algorithm was first
+  used by J. P. Delambre in 1791 \cite{WikiVerlet}, but was formally described in the
+  context of molecular dynamics by Loup Verlet in 1967 \cite{Verlet1967}.
+  Verlet's formulation did not explicitly use the velocity but instead
+  used the position at the two previous time steps.  Using the
+  velocity explicitly makes the algorithm clearer and is referred to
+  as the \emph{Velocity Verlet} algorithm \cite{dfrenkel2002:mc}.}
+\begin{align}
+  \label{eq:Verlet}
+  \vec v(t + \frac12 \Delta t) &= \vec v(t) + {1 \over m} \vec F(\vec r(t))
+                         {\Delta t \over 2}\\
+  \vec r(r + \Delta t) &= \vec r(t) + \vec v(t + \frac12 \Delta t)
+                         \Delta t\\
+  \vec v(t + \Delta t) &= \vec v(t + \frac12 \Delta t) + {1 \over m}
+                         \vec F(\vec r(t + \Delta t))
+                         {\Delta t \over 2}
+\end{align}
+
+The Velocity Verlet algorithm shares many of the symmetries of
+Hamiltonian mechanics, and therefore displays great stability in
+molecular dynamics applications.  For example, the time reversibility
+prevents a systematic drift towards higher or lower energy.  Much more
+accurate methods are available for integrating coupled differential
+equations, including the well-known Runge-Kutta methods, but the
+latter are not time-reversible and although they display better
+short-term energy conservation than the Verlet algorithm, over long
+simulation times algorithms like Runge-Kutta will display a systematic
+breaking of energy conservation.
+
+
+\subsection{The Lennard-Jones potential and the Lennard-Jones fluid}
+
+Molecular dynamics require the force on all atoms, and that requires a
+model of the atomic interactions.  Such models can range from simple
+harmonic forces to full quantum mechanical calculations.  In this
+exercises we will use the simplest possible model that resenbles
+physical interatomic forces (at least qualitatively): the
+Lennard-Jones (LJ) potential.
+
+The LJ potential assumes that all interactions between atoms are
+pair-wise forces.\footnote{This is a decent approximation for gasses,
+  but is pretty bad for solids, in particular metals.}
+The force consists of two parts, an attractive part that scales as
+$r^{-6}$ just like van der Waals forces between atoms, and a repulsive
+part that scales as $r^{-12}$ and represents the Pauli repulsion once
+the atoms get close enough that their electrons overlap.  Here $r$
+should be understood as the distance between atoms. The full
+form is thus $U(r) = A r^{-12} - B r^{-6}$, but is normally rewritten
+as
+\begin{equation}
+  \label{eq:3}
+  U(r_{ij}) = 4 \varepsilon \left( \left({\sigma \over r_{ij}}
+    \right)^{-12} - \left({\sigma \over r_{ij}}
+    \right)^{-6} \right)
+\end{equation}
+where $\varepsilon$ is the bond energy and $\sigma$ is a
+characteristic size of the atom.  The energy is minimal (and takes the
+value $-\varepsilon$) when the distance is $r_0 = 2^{1/6} \sigma
+\approx 1.12 \,\sigma$.  The total energy thus becomes
+\begin{equation}
+  \label{eq:2}
+  U = \frac12 \sum_{i,j} U(r_{ij})
+\end{equation}
+where $i$ and $j$ runs over all atoms, the factor $\frac12$
+compensates for counting all pairs twice in the sum, and $r_{ij}$ is
+the scalar distance between atoms $i$ and $j$.  The force on an atom
+$k$ is of course given by $\vec F_k = - \nabla_k U$, where the
+derivative is taken with respect to the position of atom $k$.
+
+The LJ potential is a reasonable description of the interactions
+between ideal gas atoms, and has been carefully studied both
+theoretically and numerically.  Figure \ref{fig:phasediagram} shows a
+phase diagram for the LJ system, displaying both a solid, a liquid and
+a vapor phase.
+\begin{figure}
+  \centering
+  \includegraphics[width=0.7\linewidth]{LJ_PhaseDiagram.png}
+  \caption{Phase diagram for Lennard-Jones systems, as taken from
+    Wikipedia \cite{WikiPhase}.  The phase diagram shows phases and
+    phase coexistence for different temperatures and densities, and is
+    valid for a three-dimensional LJ system.  A two-dimensional LJ
+    system will have a similar phase diagram, but the transition
+    temperatures will be around a factor of two lower, as each atom
+    has fewer neighbors in the condensed phases.}
+  \label{fig:phasediagram}
+\end{figure}
+
+\subsection{Pressure in 2D simulations}
+\label{sec:pressure}
+
+The simulations in this execises are made in two dimensions, to reduce
+computational cost and to facilitate visualization.  In two
+dimensions, the equations of state become
+\begin{align}
+  \label{eq:ideal}
+  p A &= N k T\\
+  E_{kin} &= N k T 
+\end{align}
+where the area $A$ replaces the volume.  Pressure thus has units of
+force per length (instead of per area).  In the kinetic energy, the
+factor $\frac32$ becomes $\frac22$ as there are only two degrees of
+freedom per atom instead of three.
+
+Pressure in molecular dynamics can be calculated in different ways.
+The most popular is called the ``virial method,'' where it is assumed that
+there is an ideal-gas contribution and a contribution from the
+interatomic forces.  In this computer exercise we will take a more
+direct approach.  We enclose the system in a box, whenever an atom
+attempts to move outside the box we reflect it, and record the
+momentum transferred by the box.  The force on the box from such a
+collision is thus $F \delta t = \Delta p$, where $\delta t$ is some
+collision time.  The time averaged force on the box thus becomes
+\begin{equation}
+  \label{eq:5}
+  \left< F \right> = {1 \over t} \sum F \delta t = {1 \over t} \sum
+  \Delta p
+\end{equation}
+where the sums are sums over all collision events, and $t$ is the
+elapsed time.  The pressure is obtained by dividing by the surface length of
+the computational box (a 2D box has a surface length, not a surface
+area).
+
+
+\section{The computer code}
+
+The computer code is in the assocated file \texttt{MolecularDynamics.ipynb},
+it is a Jupyter notebook.  Unlike the previous computer exercise, it
+will not work well in the cloud, as the code needs to be able to open
+a window on your local computer to display animated graphs of the
+simulation.
+
+The Notebook contains two parts.  The first defines the code used, we
+have chosen not to use preexisting MD packages, so you have the option
+of inspecting the code if you feel inclined to understand how it
+works.  The main objects defined are
+
+\begin{description}
+\item[Atoms] An object containing the data of the (2d) atoms.  It
+  contains methods to intialize the positions (randomly) and to set
+  initial velocities according to a Maxwell-Boltzmann distribution.
+  This class also has methods to calculate the energy of the system
+  and the forces on all atoms.
+\item[ReflectingBoundaries] Handles the reflecting boundaries and
+  keeps track of the momentum transferred to the boundaries, so the
+  pressure can be calculated.
+\item[VelocitVerlet] The Velocity Verlet algorithm.
+\end{description}
+
+The second part is running the actual simulation in a loop.  We
+perform 200\,000 time steps in total, the outer loop runs 1000 times
+and for each iteration 200 time steps are performed, then data about
+the system is collected, and the plot is updated. 
+
+\section{Units}
+
+Since real atoms are not confined to 2D, it does not make much sense
+to pick Lennard-Jones parameters for a real gas.  Nevertheless, the
+parameters have been set to somewhat sensible values if we assume that
+energies (and $kT$) are measures in electron volt, and distances are
+in Ångström.  All temperatures are given as $kT$, i.e. in energy units
+(or pretend that $k=1$).
+
+The time step in the Velocity Verlet algorithm is set to 0.004, that
+will work well for temperatures up to $kT = 0.2$ or slightly above.
+
+\section{Part I: Manual investigation}
+
+Try running the code as it is.  The initial parameters are $\sigma =
+\SI{1.0}{\angstrom}$, $\varepsilon = \SI{0.1}{\electronvolt}$ and $kT
+= \SI{0.01}{\electronvolt}$.
+
+\begin{itemize}
+\item Observe what happens to the kinetic energy as the simulation
+  progresses.
+\item What happens to the atoms, qualitatively?  Can this explain the
+  temperature increase you observe (think in the language of
+  thermodynamics).
+\item Where are we in the phase diagram of figure \ref{fig:phasediagram}?
+\end{itemize}
+
+\section{Part II: Ideal and non-ideal gas}
+\label{sec:part-ii}
+
+Increase the temperature so we are well above the temperature where a
+liquid forms (the supercritical region) without going so high that the
+Verlet dynamics becomes unstable.  The system will equilibrate much
+faster, and you can reduce the number of iterations in the outer loop
+to 500, to save time.
+
+\begin{itemize}
+\item Verify that with these parameters, the pressure is very close to
+  what the ideal gas law predicts.
+\item The atoms have a finite size (they are disks of radius $\approx
+  \sigma$).  For high densities, this will cause deviations from the
+  ideal gas law.  Try to estimate how big an effect you would expect.
+\item Try rerunning your simulations with significantly smaller system
+  sizes (10 or 15 Å), and verify your expectations from above.  Is the
+  pressure higher or lower than the ideal gas pressure?  Is the order
+  of magnitude of the difference consistent with your expectations?
+\item At temperatures closer to the critical point of the liquid-gas
+  transitions, the attraction between atoms also begins to influence
+  the pressure.  Do you expect this to increase or decrease the
+  pressure compared to the ideal gas pressure.  Try so see if you can
+  observe this in your simulations.  Be aware that the critical
+  temperature is probably approximately half as big for a 2D system as
+  for a 3D system.
+\end{itemize}
+
+\section{Part III: Radial Distribution Function}
+
+If you have time, you can try to calculate radial distribution
+functions (RDFs).  At the end of the notebook there is a cell defining
+a \texttt{RadialDistributionFunction} class, you can execute that cell
+to define the class, and then insert the lines mentioned in the text
+block into the main loop.  You probably need to increase the number of
+iterations of the main loop back to 1000, to get good statistics.
+
+\begin{itemize}
+\item Plot the RDF for a high temperature and a low temperature
+  simulation, for example $kT = 2 \varepsilon$ (that is 0.2) and $kT =
+  0.1 \varepsilon$ (that is 0.01).
+\item Why is there a distance below which the RDF is zero?
+\item Why is there a peak just after that region?
+\item Why is that peak much larger at low temperature?
+\item \ldots and does this relate to how the pressure is compared to
+  the ideal gas pressure?
+\end{itemize}
+
+%\nocite{GitHub}
+
+\bibliography{references.bib}
+
+\section*{Availability of code}
+
+The source for this manuscript, the notebook for generating Fig.~1, as
+well as the notebooks used in the computer exercises are available at
+GitHub:\\
+\url{https://github.com/schiotz/DTU_10122}
+
+\end{document}
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:
