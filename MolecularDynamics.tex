@@ -74,15 +74,15 @@ step is tangent to a (scaled) ellipse, see Figure
 \ref{fig:algorithms}(A).  This leads to a systematic increase in the
 total energy of the system that can be reduced by reducing the time
 step, but not eliminated.
-\begin{figure}
+\begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{MD_Algorithms.png}
   \caption{Comparison of MD algorithms for a 1D harmonic oscillator.
     Both position (r) and momentum (p) vary sinusoidally, and the
-    system traces a circle in phase space (blue circles). (A)
+    system traces a circle in phase space (blue circles). (a)
     illustrates the Euler algorithm.  Each time step is tangent to the
     true motion, and therefore moves the system to larger energies
-    (illustrated with the grey circles).  (B) illustrates the Verlet
+    (illustrated with the grey circles).  (b) illustrates the Verlet
     algorithm, the time step uses halfway values and becomes a chord
     on the circle.  For the harmonic oscillator, the step always hits
     the circle exactly.}
